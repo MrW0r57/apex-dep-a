@@ -1,0 +1,50 @@
+name: apex-redaction-probe
+on:
+  workflow_dispatch:
+permissions:
+  issues: write
+  pull-requests: read
+  contents: read
+jobs:
+  redact:
+    runs-on: ubuntu-latest
+    steps:
+      - name: redaction guard matrix (repo-A-scoped token, cannot read private repo-B)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: MrW0r57
+          A: apex-dep-a
+          B: apex-dep-b
+          CAN: CANARY_PRIV_9f3a1c
+        run: |
+          set +e; mkdir -p /tmp/o
+          H=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+          get(){ curl -s -o "$2" -w "%{http_code}" "${H[@]}" "https://api.github.com$1"; }
+          gql(){ curl -s -o "$2" -w "%{http_code}" -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" -X POST --data @"$1" https://api.github.com/graphql; }
+
+          CTRL=$(get /repos/$OWNER/$B/issues/1 /tmp/o/ctrl)                          # expect 404
+          C_TLA=$(get "/repos/$OWNER/$A/issues/1/timeline?per_page=100" /tmp/o/tla)  # cross-ref source on issue
+          C_EVA=$(get "/repos/$OWNER/$A/issues/1/events?per_page=100" /tmp/o/eva)
+          C_TLP=$(get "/repos/$OWNER/$A/issues/2/timeline?per_page=100" /tmp/o/tlp)  # PR#2 conversation timeline (closing ref)
+          C_PR=$(get "/repos/$OWNER/$A/pulls/2" /tmp/o/pr)                           # PR object
+
+          # GraphQL: PR closingIssuesReferences (public PR closes private issue) + issue trackedIssues + crossref
+          jq -n '{query:"{repository(owner:\"MrW0r57\",name:\"apex-dep-a\"){pullRequest(number:2){closingIssuesReferences(first:10){nodes{number title repository{nameWithOwner isPrivate}}}} issue(number:1){trackedIssues(first:10){nodes{number title repository{nameWithOwner}}} timelineItems(first:50){nodes{__typename ... on CrossReferencedEvent{source{__typename ... on Issue{number title repository{nameWithOwner isPrivate}}}}}}}}}"}' > /tmp/o/q.json
+          C_GQL=$(gql /tmp/o/q.json /tmp/o/gql)
+
+          hit(){ grep -q "$CAN" "$1" && echo true || echo false; }
+          jq -n \
+            --arg ctrl "$CTRL" --arg tla "$C_TLA" --arg eva "$C_EVA" --arg tlp "$C_TLP" --arg pr "$C_PR" --arg gq "$C_GQL" \
+            --argjson h_tla $(hit /tmp/o/tla) --argjson h_eva $(hit /tmp/o/eva) \
+            --argjson h_tlp $(hit /tmp/o/tlp) --argjson h_pr $(hit /tmp/o/pr) --argjson h_gql $(hit /tmp/o/gql) \
+            '{control_repoB_direct_expect404:$ctrl,
+              issue_timeline_http:$tla, issue_timeline_LEAK:$h_tla,
+              issue_events_http:$eva, issue_events_LEAK:$h_eva,
+              pr_timeline_http:$tlp, pr_timeline_LEAK:$h_tlp,
+              pr_object_http:$pr, pr_object_LEAK:$h_pr,
+              graphql_http:$gq, graphql_LEAK:$h_gql,
+              ANY_LEAK:($h_tla or $h_eva or $h_tlp or $h_pr or $h_gql)}' > /tmp/o/result.json
+          echo APEX_REDACT_START; cat /tmp/o/result.json; echo; echo APEX_REDACT_END
+          echo "--- graphql body (first 600) ---"; head -c 600 /tmp/o/gql
+          jq -n --rawfile r /tmp/o/result.json '{body:("APEX-REDACT-RESULT\n\n```json\n"+$r+"\n```")}' > /tmp/o/c.json
+          curl -s -X POST "${H[@]}" -d @/tmp/o/c.json https://api.github.com/repos/$OWNER/$A/issues/1/comments >/dev/null || true
