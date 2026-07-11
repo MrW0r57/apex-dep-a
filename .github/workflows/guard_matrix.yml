@@ -1,0 +1,177 @@
+name: apex-guard-matrix
+on:
+  workflow_dispatch:
+jobs:
+  none_baseline:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: battery none_baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e; mkdir -p /tmp/o; : > /tmp/o/row
+          H=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+          probe(){ local n="$1" m="$2" p="$3" b="$4" code;
+            if [ -n "$b" ]; then code=$(curl -s -o /tmp/o/b -w "%{http_code}" "${H[@]}" -X "$m" -d "$b" "https://api.github.com$p");
+            else code=$(curl -s -o /tmp/o/b -w "%{http_code}" "${H[@]}" -X "$m" "https://api.github.com$p"); fi;
+            echo "$n=$code" >> /tmp/o/row; }
+          probe edit_issue_comment PATCH /repos/MrW0r57/apex-dep-a/issues/comments/4945174023 "{\"body\":\"guard none_baseline\"}"
+          probe create_issue_comment POST /repos/MrW0r57/apex-dep-a/issues/1/comments "{\"body\":\"guard none_baseline\"}"
+          probe add_issue_label POST /repos/MrW0r57/apex-dep-a/issues/1/labels "{\"labels\":[\"apex-label\"]}"
+          probe assign_issue POST /repos/MrW0r57/apex-dep-a/issues/1/assignees "{\"assignees\":[\"MrW0r57\"]}"
+          probe edit_issue PATCH /repos/MrW0r57/apex-dep-a/issues/1 "{\"title\":\"guard none_baseline\"}"
+          probe react_issue_comment POST /repos/MrW0r57/apex-dep-a/issues/comments/4945174023/reactions "{\"content\":\"+1\"}"
+          probe edit_pr_via_pulls PATCH /repos/MrW0r57/apex-dep-a/pulls/2 "{\"title\":\"guard none_baseline\"}"
+          probe add_pr_as_issue_label POST /repos/MrW0r57/apex-dep-a/issues/2/labels "{\"labels\":[\"apex-label\"]}"
+          probe write_contents PUT /repos/MrW0r57/apex-dep-a/contents/guard_none_baseline.txt "{\"message\":\"g\",\"content\":\"eA==\"}"
+          probe create_status POST /repos/MrW0r57/apex-dep-a/statuses/4a3b779d0ceb74ed848c992d6bcc6f69f77ae41b "{\"state\":\"success\",\"context\":\"guard/none_baseline\"}"
+          probe create_check_run POST /repos/MrW0r57/apex-dep-a/check-runs "{\"name\":\"guard\",\"head_sha\":\"4a3b779d0ceb74ed848c992d6bcc6f69f77ae41b\",\"status\":\"completed\",\"conclusion\":\"success\"}"
+          ROW=$(jq -Rs 'split("\n")|map(select(length>0))|map(split("=")|{(.[0]):.[1]})|add' /tmp/o/row)
+          jq -n --arg prof "none_baseline" --argjson row "$ROW" '{profile:$prof,results:$row}' > /tmp/o/result.json
+          echo APEX_PERM_ROW_START; cat /tmp/o/result.json; echo; echo APEX_PERM_ROW_END
+  contents_write:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: battery contents_write
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e; mkdir -p /tmp/o; : > /tmp/o/row
+          H=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+          probe(){ local n="$1" m="$2" p="$3" b="$4" code;
+            if [ -n "$b" ]; then code=$(curl -s -o /tmp/o/b -w "%{http_code}" "${H[@]}" -X "$m" -d "$b" "https://api.github.com$p");
+            else code=$(curl -s -o /tmp/o/b -w "%{http_code}" "${H[@]}" -X "$m" "https://api.github.com$p"); fi;
+            echo "$n=$code" >> /tmp/o/row; }
+          probe edit_issue_comment PATCH /repos/MrW0r57/apex-dep-a/issues/comments/4945174023 "{\"body\":\"guard contents_write\"}"
+          probe create_issue_comment POST /repos/MrW0r57/apex-dep-a/issues/1/comments "{\"body\":\"guard contents_write\"}"
+          probe add_issue_label POST /repos/MrW0r57/apex-dep-a/issues/1/labels "{\"labels\":[\"apex-label\"]}"
+          probe assign_issue POST /repos/MrW0r57/apex-dep-a/issues/1/assignees "{\"assignees\":[\"MrW0r57\"]}"
+          probe edit_issue PATCH /repos/MrW0r57/apex-dep-a/issues/1 "{\"title\":\"guard contents_write\"}"
+          probe react_issue_comment POST /repos/MrW0r57/apex-dep-a/issues/comments/4945174023/reactions "{\"content\":\"+1\"}"
+          probe edit_pr_via_pulls PATCH /repos/MrW0r57/apex-dep-a/pulls/2 "{\"title\":\"guard contents_write\"}"
+          probe add_pr_as_issue_label POST /repos/MrW0r57/apex-dep-a/issues/2/labels "{\"labels\":[\"apex-label\"]}"
+          probe write_contents PUT /repos/MrW0r57/apex-dep-a/contents/guard_contents_write.txt "{\"message\":\"g\",\"content\":\"eA==\"}"
+          probe create_status POST /repos/MrW0r57/apex-dep-a/statuses/4a3b779d0ceb74ed848c992d6bcc6f69f77ae41b "{\"state\":\"success\",\"context\":\"guard/contents_write\"}"
+          probe create_check_run POST /repos/MrW0r57/apex-dep-a/check-runs "{\"name\":\"guard\",\"head_sha\":\"4a3b779d0ceb74ed848c992d6bcc6f69f77ae41b\",\"status\":\"completed\",\"conclusion\":\"success\"}"
+          ROW=$(jq -Rs 'split("\n")|map(select(length>0))|map(split("=")|{(.[0]):.[1]})|add' /tmp/o/row)
+          jq -n --arg prof "contents_write" --argjson row "$ROW" '{profile:$prof,results:$row}' > /tmp/o/result.json
+          echo APEX_PERM_ROW_START; cat /tmp/o/result.json; echo; echo APEX_PERM_ROW_END
+  issues_write:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: battery issues_write
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e; mkdir -p /tmp/o; : > /tmp/o/row
+          H=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+          probe(){ local n="$1" m="$2" p="$3" b="$4" code;
+            if [ -n "$b" ]; then code=$(curl -s -o /tmp/o/b -w "%{http_code}" "${H[@]}" -X "$m" -d "$b" "https://api.github.com$p");
+            else code=$(curl -s -o /tmp/o/b -w "%{http_code}" "${H[@]}" -X "$m" "https://api.github.com$p"); fi;
+            echo "$n=$code" >> /tmp/o/row; }
+          probe edit_issue_comment PATCH /repos/MrW0r57/apex-dep-a/issues/comments/4945174023 "{\"body\":\"guard issues_write\"}"
+          probe create_issue_comment POST /repos/MrW0r57/apex-dep-a/issues/1/comments "{\"body\":\"guard issues_write\"}"
+          probe add_issue_label POST /repos/MrW0r57/apex-dep-a/issues/1/labels "{\"labels\":[\"apex-label\"]}"
+          probe assign_issue POST /repos/MrW0r57/apex-dep-a/issues/1/assignees "{\"assignees\":[\"MrW0r57\"]}"
+          probe edit_issue PATCH /repos/MrW0r57/apex-dep-a/issues/1 "{\"title\":\"guard issues_write\"}"
+          probe react_issue_comment POST /repos/MrW0r57/apex-dep-a/issues/comments/4945174023/reactions "{\"content\":\"+1\"}"
+          probe edit_pr_via_pulls PATCH /repos/MrW0r57/apex-dep-a/pulls/2 "{\"title\":\"guard issues_write\"}"
+          probe add_pr_as_issue_label POST /repos/MrW0r57/apex-dep-a/issues/2/labels "{\"labels\":[\"apex-label\"]}"
+          probe write_contents PUT /repos/MrW0r57/apex-dep-a/contents/guard_issues_write.txt "{\"message\":\"g\",\"content\":\"eA==\"}"
+          probe create_status POST /repos/MrW0r57/apex-dep-a/statuses/4a3b779d0ceb74ed848c992d6bcc6f69f77ae41b "{\"state\":\"success\",\"context\":\"guard/issues_write\"}"
+          probe create_check_run POST /repos/MrW0r57/apex-dep-a/check-runs "{\"name\":\"guard\",\"head_sha\":\"4a3b779d0ceb74ed848c992d6bcc6f69f77ae41b\",\"status\":\"completed\",\"conclusion\":\"success\"}"
+          ROW=$(jq -Rs 'split("\n")|map(select(length>0))|map(split("=")|{(.[0]):.[1]})|add' /tmp/o/row)
+          jq -n --arg prof "issues_write" --argjson row "$ROW" '{profile:$prof,results:$row}' > /tmp/o/result.json
+          echo APEX_PERM_ROW_START; cat /tmp/o/result.json; echo; echo APEX_PERM_ROW_END
+  pull_requests_write:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: battery pull_requests_write
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e; mkdir -p /tmp/o; : > /tmp/o/row
+          H=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+          probe(){ local n="$1" m="$2" p="$3" b="$4" code;
+            if [ -n "$b" ]; then code=$(curl -s -o /tmp/o/b -w "%{http_code}" "${H[@]}" -X "$m" -d "$b" "https://api.github.com$p");
+            else code=$(curl -s -o /tmp/o/b -w "%{http_code}" "${H[@]}" -X "$m" "https://api.github.com$p"); fi;
+            echo "$n=$code" >> /tmp/o/row; }
+          probe edit_issue_comment PATCH /repos/MrW0r57/apex-dep-a/issues/comments/4945174023 "{\"body\":\"guard pull_requests_write\"}"
+          probe create_issue_comment POST /repos/MrW0r57/apex-dep-a/issues/1/comments "{\"body\":\"guard pull_requests_write\"}"
+          probe add_issue_label POST /repos/MrW0r57/apex-dep-a/issues/1/labels "{\"labels\":[\"apex-label\"]}"
+          probe assign_issue POST /repos/MrW0r57/apex-dep-a/issues/1/assignees "{\"assignees\":[\"MrW0r57\"]}"
+          probe edit_issue PATCH /repos/MrW0r57/apex-dep-a/issues/1 "{\"title\":\"guard pull_requests_write\"}"
+          probe react_issue_comment POST /repos/MrW0r57/apex-dep-a/issues/comments/4945174023/reactions "{\"content\":\"+1\"}"
+          probe edit_pr_via_pulls PATCH /repos/MrW0r57/apex-dep-a/pulls/2 "{\"title\":\"guard pull_requests_write\"}"
+          probe add_pr_as_issue_label POST /repos/MrW0r57/apex-dep-a/issues/2/labels "{\"labels\":[\"apex-label\"]}"
+          probe write_contents PUT /repos/MrW0r57/apex-dep-a/contents/guard_pull_requests_write.txt "{\"message\":\"g\",\"content\":\"eA==\"}"
+          probe create_status POST /repos/MrW0r57/apex-dep-a/statuses/4a3b779d0ceb74ed848c992d6bcc6f69f77ae41b "{\"state\":\"success\",\"context\":\"guard/pull_requests_write\"}"
+          probe create_check_run POST /repos/MrW0r57/apex-dep-a/check-runs "{\"name\":\"guard\",\"head_sha\":\"4a3b779d0ceb74ed848c992d6bcc6f69f77ae41b\",\"status\":\"completed\",\"conclusion\":\"success\"}"
+          ROW=$(jq -Rs 'split("\n")|map(select(length>0))|map(split("=")|{(.[0]):.[1]})|add' /tmp/o/row)
+          jq -n --arg prof "pull_requests_write" --argjson row "$ROW" '{profile:$prof,results:$row}' > /tmp/o/result.json
+          echo APEX_PERM_ROW_START; cat /tmp/o/result.json; echo; echo APEX_PERM_ROW_END
+  checks_write:
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+    steps:
+      - name: battery checks_write
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e; mkdir -p /tmp/o; : > /tmp/o/row
+          H=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+          probe(){ local n="$1" m="$2" p="$3" b="$4" code;
+            if [ -n "$b" ]; then code=$(curl -s -o /tmp/o/b -w "%{http_code}" "${H[@]}" -X "$m" -d "$b" "https://api.github.com$p");
+            else code=$(curl -s -o /tmp/o/b -w "%{http_code}" "${H[@]}" -X "$m" "https://api.github.com$p"); fi;
+            echo "$n=$code" >> /tmp/o/row; }
+          probe edit_issue_comment PATCH /repos/MrW0r57/apex-dep-a/issues/comments/4945174023 "{\"body\":\"guard checks_write\"}"
+          probe create_issue_comment POST /repos/MrW0r57/apex-dep-a/issues/1/comments "{\"body\":\"guard checks_write\"}"
+          probe add_issue_label POST /repos/MrW0r57/apex-dep-a/issues/1/labels "{\"labels\":[\"apex-label\"]}"
+          probe assign_issue POST /repos/MrW0r57/apex-dep-a/issues/1/assignees "{\"assignees\":[\"MrW0r57\"]}"
+          probe edit_issue PATCH /repos/MrW0r57/apex-dep-a/issues/1 "{\"title\":\"guard checks_write\"}"
+          probe react_issue_comment POST /repos/MrW0r57/apex-dep-a/issues/comments/4945174023/reactions "{\"content\":\"+1\"}"
+          probe edit_pr_via_pulls PATCH /repos/MrW0r57/apex-dep-a/pulls/2 "{\"title\":\"guard checks_write\"}"
+          probe add_pr_as_issue_label POST /repos/MrW0r57/apex-dep-a/issues/2/labels "{\"labels\":[\"apex-label\"]}"
+          probe write_contents PUT /repos/MrW0r57/apex-dep-a/contents/guard_checks_write.txt "{\"message\":\"g\",\"content\":\"eA==\"}"
+          probe create_status POST /repos/MrW0r57/apex-dep-a/statuses/4a3b779d0ceb74ed848c992d6bcc6f69f77ae41b "{\"state\":\"success\",\"context\":\"guard/checks_write\"}"
+          probe create_check_run POST /repos/MrW0r57/apex-dep-a/check-runs "{\"name\":\"guard\",\"head_sha\":\"4a3b779d0ceb74ed848c992d6bcc6f69f77ae41b\",\"status\":\"completed\",\"conclusion\":\"success\"}"
+          ROW=$(jq -Rs 'split("\n")|map(select(length>0))|map(split("=")|{(.[0]):.[1]})|add' /tmp/o/row)
+          jq -n --arg prof "checks_write" --argjson row "$ROW" '{profile:$prof,results:$row}' > /tmp/o/result.json
+          echo APEX_PERM_ROW_START; cat /tmp/o/result.json; echo; echo APEX_PERM_ROW_END
+  statuses_write:
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+    steps:
+      - name: battery statuses_write
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e; mkdir -p /tmp/o; : > /tmp/o/row
+          H=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+          probe(){ local n="$1" m="$2" p="$3" b="$4" code;
+            if [ -n "$b" ]; then code=$(curl -s -o /tmp/o/b -w "%{http_code}" "${H[@]}" -X "$m" -d "$b" "https://api.github.com$p");
+            else code=$(curl -s -o /tmp/o/b -w "%{http_code}" "${H[@]}" -X "$m" "https://api.github.com$p"); fi;
+            echo "$n=$code" >> /tmp/o/row; }
+          probe edit_issue_comment PATCH /repos/MrW0r57/apex-dep-a/issues/comments/4945174023 "{\"body\":\"guard statuses_write\"}"
+          probe create_issue_comment POST /repos/MrW0r57/apex-dep-a/issues/1/comments "{\"body\":\"guard statuses_write\"}"
+          probe add_issue_label POST /repos/MrW0r57/apex-dep-a/issues/1/labels "{\"labels\":[\"apex-label\"]}"
+          probe assign_issue POST /repos/MrW0r57/apex-dep-a/issues/1/assignees "{\"assignees\":[\"MrW0r57\"]}"
+          probe edit_issue PATCH /repos/MrW0r57/apex-dep-a/issues/1 "{\"title\":\"guard statuses_write\"}"
+          probe react_issue_comment POST /repos/MrW0r57/apex-dep-a/issues/comments/4945174023/reactions "{\"content\":\"+1\"}"
+          probe edit_pr_via_pulls PATCH /repos/MrW0r57/apex-dep-a/pulls/2 "{\"title\":\"guard statuses_write\"}"
+          probe add_pr_as_issue_label POST /repos/MrW0r57/apex-dep-a/issues/2/labels "{\"labels\":[\"apex-label\"]}"
+          probe write_contents PUT /repos/MrW0r57/apex-dep-a/contents/guard_statuses_write.txt "{\"message\":\"g\",\"content\":\"eA==\"}"
+          probe create_status POST /repos/MrW0r57/apex-dep-a/statuses/4a3b779d0ceb74ed848c992d6bcc6f69f77ae41b "{\"state\":\"success\",\"context\":\"guard/statuses_write\"}"
+          probe create_check_run POST /repos/MrW0r57/apex-dep-a/check-runs "{\"name\":\"guard\",\"head_sha\":\"4a3b779d0ceb74ed848c992d6bcc6f69f77ae41b\",\"status\":\"completed\",\"conclusion\":\"success\"}"
+          ROW=$(jq -Rs 'split("\n")|map(select(length>0))|map(split("=")|{(.[0]):.[1]})|add' /tmp/o/row)
+          jq -n --arg prof "statuses_write" --argjson row "$ROW" '{profile:$prof,results:$row}' > /tmp/o/result.json
+          echo APEX_PERM_ROW_START; cat /tmp/o/result.json; echo; echo APEX_PERM_ROW_END
