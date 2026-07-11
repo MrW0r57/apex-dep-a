@@ -1,0 +1,54 @@
+name: apex-xtype-probe
+on:
+  workflow_dispatch:
+jobs:
+  # issues:write ONLY -> try to affect PR #2 via the shared /issues/{n}/ namespace.
+  # Any 2xx = issues:write leaks into pull-request resources (inconsistent object-type guard).
+  issues_write_vs_pr:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: issues:write against PR #2 shared endpoints
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          set +e; mkdir -p /tmp/o; : > /tmp/o/row
+          H=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+          probe(){ local n="$1" m="$2" p="$3" b="$4" code;
+            if [ -n "$b" ]; then code=$(curl -s -o /dev/null -w "%{http_code}" "${H[@]}" -X "$m" -d "$b" "https://api.github.com$p");
+            else code=$(curl -s -o /dev/null -w "%{http_code}" "${H[@]}" -X "$m" "https://api.github.com$p"); fi; echo "$n=$code" >> /tmp/o/row; }
+          probe pr_comment       POST  /repos/MrW0r57/apex-dep-a/issues/2/comments '{"body":"xtype"}'
+          probe pr_label         POST  /repos/MrW0r57/apex-dep-a/issues/2/labels   '{"labels":["apex-label"]}'
+          probe pr_assign        POST  /repos/MrW0r57/apex-dep-a/issues/2/assignees '{"assignees":["MrW0r57"]}'
+          probe pr_patch         PATCH /repos/MrW0r57/apex-dep-a/issues/2          '{"title":"xtype-edited"}'
+          probe pr_lock          PUT   /repos/MrW0r57/apex-dep-a/issues/2/lock     '{"lock_reason":"resolved"}'
+          probe pr_react         POST  /repos/MrW0r57/apex-dep-a/issues/2/reactions '{"content":"+1"}'
+          probe pr_conv_comment_edit PATCH /repos/MrW0r57/apex-dep-a/issues/comments/4945174222 '{"body":"xtype-edited"}'
+          probe pr_state_close   PATCH /repos/MrW0r57/apex-dep-a/issues/2          '{"state":"open"}'
+          ROW=$(jq -Rs 'split("\n")|map(select(length>0))|map(split("=")|{(.[0]):.[1]})|add' /tmp/o/row)
+          jq -n --argjson r "$ROW" '{profile:"issues_write_vs_PR2",results:$r,note:"any 2xx = issues:write reached a PULL-REQUEST resource"}' > /tmp/o/result.json
+          echo APEX_XTYPE_START; cat /tmp/o/result.json; echo; echo APEX_XTYPE_END
+  # symmetric: pull-requests:write ONLY -> try to affect pure ISSUE #1 via shared namespace
+  pr_write_vs_issue:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: pull-requests:write against ISSUE #1 shared endpoints
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          set +e; mkdir -p /tmp/o; : > /tmp/o/row
+          H=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+          probe(){ local n="$1" m="$2" p="$3" b="$4" code;
+            if [ -n "$b" ]; then code=$(curl -s -o /dev/null -w "%{http_code}" "${H[@]}" -X "$m" -d "$b" "https://api.github.com$p");
+            else code=$(curl -s -o /dev/null -w "%{http_code}" "${H[@]}" -X "$m" "https://api.github.com$p"); fi; echo "$n=$code" >> /tmp/o/row; }
+          probe iss_comment POST  /repos/MrW0r57/apex-dep-a/issues/1/comments '{"body":"xtype"}'
+          probe iss_label   POST  /repos/MrW0r57/apex-dep-a/issues/1/labels   '{"labels":["apex-label"]}'
+          probe iss_assign  POST  /repos/MrW0r57/apex-dep-a/issues/1/assignees '{"assignees":["MrW0r57"]}'
+          probe iss_patch   PATCH /repos/MrW0r57/apex-dep-a/issues/1          '{"title":"xtype-edited"}'
+          probe iss_lock    PUT   /repos/MrW0r57/apex-dep-a/issues/1/lock     '{"lock_reason":"resolved"}'
+          probe iss_react   POST  /repos/MrW0r57/apex-dep-a/issues/1/reactions '{"content":"+1"}'
+          probe iss_conv_comment_edit PATCH /repos/MrW0r57/apex-dep-a/issues/comments/4945174023 '{"body":"xtype-edited"}'
+          ROW=$(jq -Rs 'split("\n")|map(select(length>0))|map(split("=")|{(.[0]):.[1]})|add' /tmp/o/row)
+          jq -n --argjson r "$ROW" '{profile:"pr_write_vs_ISSUE1",results:$r,note:"any 2xx = pull-requests:write reached an ISSUE resource"}' > /tmp/o/result.json
+          echo APEX_XTYPE_START; cat /tmp/o/result.json; echo; echo APEX_XTYPE_END
